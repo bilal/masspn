@@ -1,10 +1,10 @@
-A command-line utility to send mass push notifications to all registered users of an SNS application. 
+A command-line utility to send mass push notifications to all registered users of an SNS platform application. 
 
 ### Setup:
 
-* Install easy_install (https://pypi.python.org/pypi/setuptools)
-* Install pip: sudo easy_install pip
-* Install Boto (AWS SDK for python): sudo pip install boto
+* **Install easy_install:** https://pypi.python.org/pypi/setuptools
+* **Install pip:** sudo easy_install pip
+* **Install Boto (AWS SDK for python):** sudo pip install boto
 
 ### Boto Config:
 
