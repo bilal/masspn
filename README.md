@@ -1,4 +1,4 @@
-A command-line utility to send mass push notifications to all users of SNS application. 
+A command-line utility to send mass push notifications to all registered users of an SNS application. 
 
 ### Setup:
 
@@ -19,4 +19,12 @@ Set your credentials in `~/.boto`. Create the file if it dose not exist
 	[Boto]
 	debug = 0
 	num_retries = 5
+</blockquote>
+
+### Running the script:
+
+<blockqoute>
+	
+	Usage: masspn.py [-v] [-a sns_app_arn] [-m message] [-n num_threads]
+	
 </blockquote>
