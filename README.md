@@ -1,4 +1,4 @@
-A command-line utility to send mass push notifications to all registered users of an SNS platform application. 
+A command-line utility for send mass push notifications to all registered users of an SNS platform application. 
 
 ### Setup:
 
@@ -21,7 +21,7 @@ Set your credentials in `~/.boto`. Create the file if it dose not exist
 	num_retries = 5
 </blockquote>
 
-### Step 1: Fetch all user arns and writing them to file:
+### Step 1: Fetch all user arns and write them to file:
 
 </blockquote>
 
@@ -37,9 +37,9 @@ The output format:
 
 <blockqoute>
 	
-Note that this part of cannot be parallelized and would take quite a bit of time for large number of users. 
+Note that fetching all registered arns cannot be parallelized and so would take quite a bit of time for large number of users. 
 	
-### Step 2: Send push notification to all arns in a file
+### Step 2: Send push notifications to all users
 
 <blockqoute>
 	
@@ -47,4 +47,4 @@ Note that this part of cannot be parallelized and would take quite a bit of time
 	
 </blockquote>
 
-By default, masspn.py uses 5 processes. To process all the files and not send the notification specify the `--dry-run` option, useful to verify that the entire file is valid. The script writes the arns to `arns_file.out.[success|failures|disabled]` files indicating the result for each arn. 
+By default, masspn.py uses 5 processes. Specify the `--dry-run` option to process the entire file and make sure everything works but not send the actual notification. The script writes the output to `arns_file.out.[success|failures|disabled]` files, indicating the result for each arn. 
