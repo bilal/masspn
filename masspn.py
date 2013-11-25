@@ -1,87 +1,156 @@
 #!/usr/bin/env python
 # author: msheikhh@ea.com
-# A small command line utility for sending out mass push notifications inspired by cq. Notifications are sent to all registered users for an application.
+# A small command line utility for sending out mass push notifications. 
+# Notifications are sent to all registered users for an application.
 
 import getopt, sys
 from boto.sns.connection import SNSConnection
+import multiprocessing as mp
+#from multiprocessing.pool import ThreadPool
 
 def usage():
-	print 'Usage: masspn.py [-v] [-a sns_app_arn] [-m message] [-n num_threads] '
+	print 'Usage: masspn.py [-v] [--dry-run] [-a arns_file] [-m message] [-n num_processes] '
 
 def require_param(param):
 	print 'Error: must specify %s' % param
 	usage()
 	sys.exit(2)
+	
+
+def process_chunk(chunk, message, output_filename, dry_run):
+	disabled = []
+	arns_to_process = []
+	successes = []
+	failures = []
+	try:
+		print "Process chunk called with chunk size: %d, message: %s, output_filename: %s and dry_run: %s" % (len(chunk), message, output_filename, str(dry_run))
+		for line in chunk:
+			try:
+				print "line: %s" % line
+				if line.strip():
+					[arn, enabled] = line.strip().split(",")
+					print "arn: %s, enabled: %s" % (arn, enabled)
+					if (enabled == "false"):
+						disabled.append(arn)
+					else:
+						arns_to_process.append(arn)
+			except Exception as err:
+				print "Error parsing line: %s" % line
+		successes, failures = send_pns(arns_to_process, message, dry_run)
+	except Exception as e:
+		print "Error processing chunk: %s" % str(e)
+	return (successes, failures, disabled, output_filename)
+
+def send_pns(arns, message, dry_run):
+	print "Send pns called with message: %s, dry_run: %s and %d arns" % (message, str(dry_run), len(arns))
+	successes = []
+	failures = []
+	try:
+		c = SNSConnection()
+		for arn in arns:
+			if not dry_run:
+				c.publish(None, message, None, arn, None)
+			successes.append(arn)
+	except Exception as err:
+		print "Error sending push notification: %s" % str(err)
+		failures.append(arn)
+	return (successes, failures)
+	
+def handle_process_chunk_result(result):
+	print "Handle process chunk result called with: %s" % str(result)
+	(successes, failures, disabled, filename) = result
+	s = len(successes)
+	f = len(failures)
+	d = len(disabled)
+	total = s + f + d
+	append_arns_to_file(successes, filename, "success")
+	append_arns_to_file(failures, filename, "failures")
+	append_arns_to_file(disabled, filename, "disabled")
+	print "A chunk of %d processed with %d successful notifications, %d failures and %d disabled (not sent)" % (total, s, f, d)
+
+def append_arns_to_file(arns, filename, arn_status):
+	fname = filename + "." + arn_status.lower()
+	with open(fname, 'a') as f:
+		for arn in arns:
+			f.write("%s\n" % arn)
+		f.close()
+		
+def initialize_file(filename):
+	f = open(filename, 'w')
+	f.write('')
+	f.close()
 
 def main():
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], 'hva:m:n:',['help', 'verbose', 'app-arn', 'message', 'num-threads'])
+		opts, args = getopt.getopt(sys.argv[1:], 'hva:m:n:',['help', 'verbose', 'dry-run', 'arns-file', 'message', 'num-processes'])
 	except:
 		usage()
 		sys.exit(2)
 		
-	app_arn = ''
+	arns_file = ''
 	message = ''
-	num_threads = 1
+	num_processes = 5
 	verbose = False
+	dry_run = False
+	# process 1000 arns in a go
+	chunk_size = 1000 
+	
 	for o, a in opts:
 		if o in ('-h', '--help'):
 			usage()
 			sys.exit()
 		if o in ('-v', '--verbose'):
 			verbose = True
-		if o in ('-a', '--sns_app_arn'):
-			app_arn = a
+		if o in ('-a', '--arns-file'):
+			arns_file = a
 		if o in ('-m', '--message'):
 			message = a
-		if o in ('-n', '--num_threads'):
-			num_threads = int(a)
+		if o in ('-n', '--num-processes'):
+			num_processes = int(a)
+		if o == '--dry-run':
+			dry_run = True
 	
-	if app_arn == '':
-		require_param("sns application arn")
+	if arns_file == '':
+		require_param("arns file")
 	if message == '':
 		require_param("message")
+
+	print "Dry run: %s" % dry_run
+	output_file = arns_file + ".out"
 	
-	c = SNSConnection()
+	initialize_file(output_file + ".success")
+	initialize_file(output_file + ".failures")
+	initialize_file(output_file + ".disabled")
 	
-	total_arns = 0
-	successes = 0
-	not_sent = 0
-	failures = 0
-	next_token = None
-	
-	#print c.list_platform_applications()
-	
-	while True:
-		endpoint_result = c.list_endpoints_by_platform_application(app_arn)
-		next_token = endpoint_result['ListEndpointsByPlatformApplicationResponse']['ListEndpointsByPlatformApplicationResult']['NextToken']
-		endpoints = endpoint_result['ListEndpointsByPlatformApplicationResponse']['ListEndpointsByPlatformApplicationResult']['Endpoints']
-		total_arns += len(endpoints)
-		print "Got %d more arns. Total arns %d" % (len(endpoints), total_arns)
-		print "Next token: %s" % next_token
-		# send notifications
-		for endpoint in endpoints:
-			try:
-				endpoint_arn = endpoint['EndpointArn']
-				endpoint_enabled = endpoint['Attributes']['Enabled']
-				if (endpoint_enabled == 'false'):
-					print "Endpoint not enabled: Not Sending push notification to %s" % endpoint_arn
-					not_sent += 1 
-				else:
-					print "Sending push notification to %s" % endpoint_arn
-					c.publish(None, message, None, endpoint_arn, None)
-					successes += 1
-			except Exception, err:
-				print "Error sending push notification: %s" % str(err)
-				failures += 1
+	arn_count = 0
+	try:
+		# create a process pool
+		pool = mp.Pool(processes = num_processes)
+		#pool = ThreadPool(processes = num_processes)
+		
+		with open(arns_file, 'r') as f:
+			while True:
+				chunk = []
+				for l in xrange(0, chunk_size):
+					line = f.readline()
+					if not line:
+						break
+					chunk.append(line)		
+				arn_count += len(chunk)
+				# process the chunk
+				pool.apply_async(process_chunk, args = (chunk, message, output_file, dry_run), callback = handle_process_chunk_result)
+				print "Update: Issued async processing requests for %d arns" % arn_count
+				if len(chunk) < chunk_size:
+					break
+			f.close()
+		pool.close()
+		pool.join()
+		print "Successfully processed all (%d) arns in %s" % (arn_count, arns_file)
+	except Exception as err:
+		print "Error: Stopped processing with error %s" % str(err)
+		print "Issued processing requests for %d arns from %s" % (arn_count, arns_file)
+		print "Please check the output files %s*" % output_file
+		sys.exit(2)
 				
-				
-		if next_token == None:
-			break
-			
-	# print statistics
-	print "Statistics:"
-	print "Successes: %s, Failures: %s, Not Sent (Disabled): %s, Total: %s" % (successes, failures, not_sent, total_arns)
-	
 if __name__ == "__main__":
 	main()

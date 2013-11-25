@@ -21,10 +21,30 @@ Set your credentials in `~/.boto`. Create the file if it dose not exist
 	num_retries = 5
 </blockquote>
 
-### Running the script:
+### Step 1: Fetch all user arns and writing them to file:
+
+</blockquote>
+
+	Usage: fetch_user_arns.py [-v] [-a sns_app_arn] [-o output_file]
 
 <blockqoute>
 	
-	Usage: masspn.py [-v] [-a sns_app_arn] [-m message] [-n num_threads]
+The output format:
+
+</blockquote>
+
+	arn,enabled
+
+<blockqoute>
+	
+Note that this part of cannot be parallelized and would take quite a bit of time for large number of users. 
+	
+### Step 2: Send push notification to all arns in a file
+
+<blockqoute>
+	
+	Usage: masspn.py [-v] [--dry-run] [-a arns_file] [-m message] [-n num_processes]
 	
 </blockquote>
+
+By default, masspn.py uses 5 processes. To process all the files and not send the notification specify the `--dry-run` option, useful to verify that the entire file is valid. The script writes the arns to `arns_file.out.[success|failures|disabled]` files indicating the result for each arn. 
