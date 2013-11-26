@@ -4,12 +4,13 @@
 # Notifications are sent to all registered users for an application.
 
 import getopt, sys
-from boto.sns.connection import SNSConnection
+from boto import sns
 import multiprocessing as mp
+from time import sleep
 #from multiprocessing.pool import ThreadPool
 
 def usage():
-	print 'Usage: masspn.py [-v] [--dry-run] [-a arns_file] [-m message] [-n num_processes] '
+	print 'Usage: masspn.py [-v] [--dry-run] [-a arns_file] [-g region] [-m message] [-s message-structure] [-n num_processes] '
 
 def require_param(param):
 	print 'Error: must specify %s' % param
@@ -17,7 +18,7 @@ def require_param(param):
 	sys.exit(2)
 	
 
-def process_chunk(chunk, message, output_filename, dry_run):
+def process_chunk(chunk, message, region, message_structure, output_filename, dry_run):
 	disabled = []
 	arns_to_process = []
 	successes = []
@@ -26,30 +27,33 @@ def process_chunk(chunk, message, output_filename, dry_run):
 		print "Process chunk called with chunk size: %d, message: %s, output_filename: %s and dry_run: %s" % (len(chunk), message, output_filename, str(dry_run))
 		for line in chunk:
 			try:
-				print "line: %s" % line
+				#print "line: %s" % line
 				if line.strip():
 					[arn, enabled] = line.strip().split(",")
-					print "arn: %s, enabled: %s" % (arn, enabled)
+					#print "arn: %s, enabled: %s" % (arn, enabled)
 					if (enabled == "false"):
 						disabled.append(arn)
 					else:
 						arns_to_process.append(arn)
 			except Exception as err:
 				print "Error parsing line: %s" % line
-		successes, failures = send_pns(arns_to_process, message, dry_run)
+		successes, failures = send_pns(arns_to_process, message, region, message_structure, dry_run)
 	except Exception as e:
 		print "Error processing chunk: %s" % str(e)
 	return (successes, failures, disabled, output_filename)
 
-def send_pns(arns, message, dry_run):
-	print "Send pns called with message: %s, dry_run: %s and %d arns" % (message, str(dry_run), len(arns))
+def send_pns(arns, message, region, message_structure, dry_run):
+	print "Send pns called with message: %s, dry_run: %s, %d arns, region: %s, message_structure: %s" % (message, str(dry_run), len(arns), region, message_structure)
 	successes = []
 	failures = []
 	try:
-		c = SNSConnection()
+		c = sns.connect_to_region(region)
 		for arn in arns:
 			if not dry_run:
-				c.publish(None, message, None, arn, None)
+				c.publish(None, message, None, arn, "json")
+			else:
+				# sleep to simiulate request time
+				sleep(0.2) # 200 milliseconds
 			successes.append(arn)
 	except Exception as err:
 		print "Error sending push notification: %s" % str(err)
@@ -57,7 +61,7 @@ def send_pns(arns, message, dry_run):
 	return (successes, failures)
 	
 def handle_process_chunk_result(result):
-	print "Handle process chunk result called with: %s" % str(result)
+	#print "Handle process chunk result called with: %s" % str(result)
 	(successes, failures, disabled, filename) = result
 	s = len(successes)
 	f = len(failures)
@@ -82,18 +86,20 @@ def initialize_file(filename):
 
 def main():
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], 'hva:m:n:',['help', 'verbose', 'dry-run', 'arns-file', 'message', 'num-processes'])
+		opts, args = getopt.getopt(sys.argv[1:], 'hva:g:m:s:n:',['help', 'verbose', 'dry-run', 'arns-file', 'region', 'message', 'message-structure', 'num-processes'])
 	except:
 		usage()
 		sys.exit(2)
 		
 	arns_file = ''
 	message = ''
+	message_structure = ''
+	region = ''
 	num_processes = 5
 	verbose = False
 	dry_run = False
-	# process 1000 arns in a go
-	chunk_size = 1000 
+	# process 500 arns in a go
+	chunk_size = 500 
 	
 	for o, a in opts:
 		if o in ('-h', '--help'):
@@ -105,6 +111,10 @@ def main():
 			arns_file = a
 		if o in ('-m', '--message'):
 			message = a
+		if o in ('-s', '--message-structure'):
+			message_structure = a
+		if o in ('-g', '--region'):
+			region = a
 		if o in ('-n', '--num-processes'):
 			num_processes = int(a)
 		if o == '--dry-run':
@@ -114,6 +124,10 @@ def main():
 		require_param("arns file")
 	if message == '':
 		require_param("message")
+	if region == '':
+		require_param("region (e.g., us-east-1, us-west-2)")
+	if (message_structure == '') or (message_structure != 'text' and message_structure != 'json'):
+		require_param("message structure (text or json)")
 
 	print "Dry run: %s" % dry_run
 	output_file = arns_file + ".out"
@@ -138,7 +152,7 @@ def main():
 					chunk.append(line)		
 				arn_count += len(chunk)
 				# process the chunk
-				pool.apply_async(process_chunk, args = (chunk, message, output_file, dry_run), callback = handle_process_chunk_result)
+				pool.apply_async(process_chunk, args = (chunk, message, region, message_structure, output_file, dry_run), callback = handle_process_chunk_result)
 				print "Update: Issued async processing requests for %d arns" % arn_count
 				if len(chunk) < chunk_size:
 					break

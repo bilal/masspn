@@ -25,9 +25,11 @@ Set your credentials in `~/.boto`. Create the file if it dose not exist
 
 </blockquote>
 
-	Usage: fetch_user_arns.py [-v] [-a sns_app_arn] [-o output_file]
+	Usage: fetch_user_arns.py [-v] [-a sns_app_arn] [-g region] [-o output_file]
 
 <blockqoute>
+	
+Region examples: us-east-1, us-west-2 etc
 	
 The output format:
 
@@ -43,8 +45,10 @@ Note that fetching all registered arns cannot be parallelized and so would take 
 
 <blockqoute>
 	
-	Usage: masspn.py [-v] [--dry-run] [-a arns_file] [-m message] [-n num_processes]
+	Usage: masspn.py [-v] [--dry-run] [-a arns_file] [-g region] [-m message] [-s message-structure] [-n num_processes] 
 	
 </blockquote>
+
+Message structure must either be `text` or `json`
 
 By default, masspn.py uses 5 processes. Specify the `--dry-run` option to process the entire file and make sure everything works but not send the actual notification. The script writes the output to `arns_file.out.[success|failures|disabled]` files, indicating the result for each arn. 

@@ -4,10 +4,10 @@
 # Writes the arns in a file in append mode.  
 
 import getopt, sys
-from boto.sns.connection import SNSConnection
+from boto import sns
 
 def usage():
-	print 'Usage: fetch_user_arns.py [-v] [-a sns_app_arn] [-o output_file]'
+	print 'Usage: fetch_user_arns.py [-v] [-a sns_app_arn] [-g region] [-o output_file]'
 
 def require_param(param):
 	print 'Error: must specify %s' % param
@@ -16,13 +16,14 @@ def require_param(param):
 
 def main():
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], 'hvra:o:',['help', 'verbose', 'app-arn', 'output-file'])
+		opts, args = getopt.getopt(sys.argv[1:], 'hva:g:o:',['help', 'verbose', 'app-arn', 'region', 'output-file'])
 	except:
 		usage()
 		sys.exit(2)
 		
 	app_arn = ''
 	output_file = ''
+	region = ''
 	verbose = False
 	for o, a in opts:
 		if o in ('-h', '--help'):
@@ -32,6 +33,8 @@ def main():
 			verbose = True
 		if o in ('-a', '--sns_app_arn'):
 			app_arn = a
+		if o in ('-g', '--region'):
+			region = a
 		if o in ('-o', '--output'):
 			output_file = a
 	
@@ -39,8 +42,11 @@ def main():
 		require_param("sns application arn")
 	if output_file == '':
 		require_param("output_file")
+	if region == '':
+		require_param("region (e.g., us-east-1, us-west-2)")
 	
-	c = SNSConnection()
+	#c = SNSConnection()
+	c = sns.connect_to_region(region)
 	
 	total_arns = 0
 	next_token = None
