@@ -49,15 +49,18 @@ def send_pns(arns, message, region, message_structure, dry_run):
 	try:
 		c = sns.connect_to_region(region)
 		for arn in arns:
-			if not dry_run:
-				c.publish(None, message, None, arn, "json")
-			else:
-				# sleep to simiulate request time
-				sleep(0.2) # 200 milliseconds
-			successes.append(arn)
-	except Exception as err:
-		print "Error sending push notification: %s" % str(err)
-		failures.append(arn)
+			try:
+				if not dry_run:
+					c.publish(None, message, None, arn, "json")
+				else:
+					# sleep to simiulate request time
+					sleep(0.01) # 10 milliseconds
+				successes.append(arn)
+			except Exception as err:
+				print "Error sending push notification: %s" % str(err)
+				failures.append(arn)
+	except Exception as e:
+		print "Error connecting to SNS"
 	return (successes, failures)
 	
 def handle_process_chunk_result(result):
@@ -128,6 +131,9 @@ def main():
 		require_param("region (e.g., us-east-1, us-west-2)")
 	if (message_structure == '') or (message_structure != 'text' and message_structure != 'json'):
 		require_param("message structure (text or json)")
+		
+	#message = '{\"GCM\":\"{\\"data\\": {\\"id\\":\\"COLLECTIBLE_ID\\",\\"title\\":\\"Collect your FREE bonus now! Get back to the action!\\",\\"alert\\":\\"Collect your FREE bonus now! Get back to the Action!\\",\\"type\\":\\"COLLECTIBLE_TYPE\\"}}\"}'
+	message = '{\"GCM\":\"{\\"data\\": {\\"id\\":\\"SALE_ID\\",\\"title\\":\\"Coin Sale\\",\\"alert\\":\\"Cyber Week Special! Double your fun with MONOPOLY Slots. Get up to 2X the coins in every pack!\\",\\"type\\":\\"SALE_TYPE\\"}}\"}'
 
 	print "Dry run: %s" % dry_run
 	output_file = arns_file + ".out"
